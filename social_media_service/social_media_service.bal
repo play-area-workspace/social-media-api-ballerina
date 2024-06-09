@@ -13,11 +13,33 @@ table<User> key(id) users = table [
     {id: 2, name: "Parker", birthDate: {year: 1998, month: 5, day: 13}, mobileNumber: "0713463152"}
 ];
 
+type ErrorDetails record {
+    string message;
+    string details;
+    time:Utc timeStamp;
+};
+
+type UserNotFound record {|
+    *http:NotFound;
+    ErrorDetails body;
+|};
+
 
 service /social\-media on new http:Listener(9090) {
 
-    // social-media/user
-    resource function get user() returns User[]|error {
+    // social-media/users
+    resource function get users() returns User[]|error {
         return users.toArray();
+    }
+
+    resource function get users/[int id]() returns User|UserNotFound|error {
+        User? user = users[id];
+        if user is(){
+            UserNotFound userNotFound = {
+                body: {message: string `id: ${id}`, details: string `user/${id}`, timeStamp: time:utcNow()}
+            };
+            return userNotFound;
+        }
+        return user;
     }
 }
