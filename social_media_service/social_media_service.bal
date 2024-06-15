@@ -1,5 +1,7 @@
 import ballerina/http;
 import ballerina/time;
+import ballerina/sql;
+import ballerinax/mysql;
 
 type User record {|
     readonly int id;
@@ -29,6 +31,8 @@ type UserNotFound record {|
     *http:NotFound;
     ErrorDetails body;
 |};
+
+mysql:Client socialMediaDb = check new("localhost","social_media_user","dummypassword","social_media_database",3306);
 
 
 service /social\-media on new http:Listener(9090) {
