@@ -21,6 +21,16 @@ type NewUser record {|
     string mobileNumber;
 |};
 
+type Post record {|
+    int id;
+    string description;
+    string tags;
+    string category;
+
+    @sql:Column {name: "created_date"}
+    time:Date createdDate;
+|};
+
 type ErrorDetails record {
     string message;
     string details;
@@ -72,5 +82,19 @@ service /social\-media on new http:Listener(9090) {
         `);
 
         return http:CREATED;
+    }
+
+    resource function get users/[int id]/posts() returns Post[]|UserNotFound|error?{
+        User|sql:Error user = socialMediaDb->queryRow(`SELECT * FROM users WHERE id = ${id}`);
+        if user is sql:NoRowsError{
+            UserNotFound userNotFound = {
+                body:{message: string `id:${id}`, details: string `users/${id}`, timeStamp: time:utcNow()}
+            };
+            return userNotFound;
+        }
+        
+        stream<Post,sql:Error?> postStream = socialMediaDb->query(`SELECT id,description,category,created_date,tags FROM posts WHERE user_id = ${id}`); 
+        Post[]|error posts = from Post post in postStream select post;
+        return posts;  
     }
 }
