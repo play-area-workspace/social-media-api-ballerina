@@ -50,3 +50,5 @@ target/
 Ballerina.lock
 
 */Ballerina.lock
+
+test.json

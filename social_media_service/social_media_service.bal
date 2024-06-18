@@ -3,6 +3,7 @@ import ballerina/sql;
 import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
+import ballerina/lang.regexp;
 
 type User record {|
     readonly int id;
@@ -40,6 +41,18 @@ type ErrorDetails record {
 type UserNotFound record {|
     *http:NotFound;
     ErrorDetails body;
+|};
+
+type Meta record {|
+    string[] tags;
+    string category;
+    time:Date created_date;
+|};
+
+type PostWithMeta record {|
+    int id;
+    string description;
+    Meta meta;
 |};
 
 type DatabaseConfig record {|
@@ -84,17 +97,31 @@ service /social\-media on new http:Listener(9090) {
         return http:CREATED;
     }
 
-    resource function get users/[int id]/posts() returns Post[]|UserNotFound|error?{
+    resource function get users/[int id]/posts() returns PostWithMeta[]|UserNotFound|error? {
         User|sql:Error user = socialMediaDb->queryRow(`SELECT * FROM users WHERE id = ${id}`);
-        if user is sql:NoRowsError{
+        if user is sql:NoRowsError {
             UserNotFound userNotFound = {
-                body:{message: string `id:${id}`, details: string `users/${id}`, timeStamp: time:utcNow()}
+                body: {message: string `id:${id}`, details: string `users/${id}`, timeStamp: time:utcNow()}
             };
             return userNotFound;
         }
-        
-        stream<Post,sql:Error?> postStream = socialMediaDb->query(`SELECT id,description,category,created_date,tags FROM posts WHERE user_id = ${id}`); 
-        Post[]|error posts = from Post post in postStream select post;
-        return posts;  
+
+        stream<Post, sql:Error?> postStream = socialMediaDb->query(`SELECT id,description,category,created_date,tags FROM posts WHERE user_id = ${id}`);
+        Post[]|error posts = from Post post in postStream
+            select post;
+        return postToPostWithMeta(check posts);
     }
 }
+
+
+function postToPostWithMeta(Post[] post) returns PostWithMeta[] => from var postItem in post
+    select {
+        id: postItem.id,
+        description: postItem.description,
+        meta: {
+            tags: regexp:split(re `,`,postItem.tags),
+            category: postItem.category,
+            created_date: postItem.createdDate
+        }
+    };
+
