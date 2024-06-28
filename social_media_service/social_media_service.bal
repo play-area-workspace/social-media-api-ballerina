@@ -1,9 +1,9 @@
 import ballerina/http;
+import ballerina/lang.regexp;
 import ballerina/sql;
 import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
-import ballerina/lang.regexp;
 
 type User record {|
     readonly int id;
@@ -24,6 +24,15 @@ type NewUser record {|
 
 type Post record {|
     int id;
+    string description;
+    string tags;
+    string category;
+
+    @sql:Column {name: "created_date"}
+    time:Date createdDate;
+|};
+
+type NewPost record {|
     string description;
     string tags;
     string category;
@@ -55,6 +64,11 @@ type PostWithMeta record {|
     Meta meta;
 |};
 
+type PostForbidden record {|
+    *http:Forbidden;
+    ErrorDetails body;
+|};
+
 type DatabaseConfig record {|
     string host;
     string user;
@@ -66,6 +80,7 @@ type DatabaseConfig record {|
 configurable DatabaseConfig databaseConfig = ?;
 
 mysql:Client socialMediaDb = check new (...databaseConfig);
+http:Client sentimentEndPoint = check new ("http://localhost:9099/text-processing");
 
 service /social\-media on new http:Listener(9090) {
 
@@ -111,17 +126,47 @@ service /social\-media on new http:Listener(9090) {
             select post;
         return postToPostWithMeta(check posts);
     }
-}
 
+    resource function post users/[int id]/posts(NewPost newPost) returns http:Created|UserNotFound|PostForbidden|error? {
+        User user = check socialMediaDb->queryRow(`SELECT FROM users WHERE id = ${id}`);
+        if user is sql:NoRowsError {
+            ErrorDetails errorDetails = {message: string `id: ${id}`, details: string `users/${id}/posts`, timeStamp: time:utcNow()}
+            UserNotFound userNotFound = {
+                body: errorDetails
+            };
+            return userNotFound;
+        }
+
+        if user is error {
+            return user;
+        }
+
+        _ = check socialMediaDb->execute(`
+            INSERT INTO posts(description, category, created_date, tags, user_id) 
+            VALUES (${newPost.description}, ${newPost.category}, CURDATE(), ${newPost.tags}, ${id});`);
+
+        return http:CREATED;
+    }
+}
 
 function postToPostWithMeta(Post[] post) returns PostWithMeta[] => from var postItem in post
     select {
         id: postItem.id,
         description: postItem.description,
         meta: {
-            tags: regexp:split(re `,`,postItem.tags),
+            tags: regexp:split(re `,`, postItem.tags),
             category: postItem.category,
             created_date: postItem.createdDate
         }
     };
 
+type Probability record {
+    decimal neg;
+    decimal neutral;
+    decimal pos;
+};
+
+type Sentiment record {
+    Probability probability;
+    string label;
+};

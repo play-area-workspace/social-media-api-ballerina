@@ -1,0 +1,8 @@
+[package]
+org = "sashm"
+name = "sentiment_analysis_service"
+version = "0.1.0"
+distribution = "2201.9.0"
+
+[build-options]
+observabilityIncluded = true
