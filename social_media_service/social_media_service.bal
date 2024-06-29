@@ -1,10 +1,10 @@
 import ballerina/http;
+import ballerina/io;
 import ballerina/lang.regexp;
 import ballerina/sql;
 import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
-import ballerina/io;
 
 type User record {|
     readonly int id;
@@ -87,9 +87,13 @@ type DatabaseConfig record {|
 |};
 
 configurable DatabaseConfig databaseConfig = ?;
+configurable http:RetryConfig retryConfig = ?;
 
 mysql:Client socialMediaDb = check new (...databaseConfig);
-http:Client sentimentEndPoint = check new ("http://localhost:9099/text-processing");
+http:Client sentimentEndPoint = check new ("http://localhost:9099/text-processing",
+    timeout = 30,
+    retryConfig = {...retryConfig}
+);
 
 service /social\-media on new http:Listener(9090) {
 
@@ -152,7 +156,7 @@ service /social\-media on new http:Listener(9090) {
 
         Sentiment sentiment = check sentimentEndPoint->/api/sentiment.post({text: newPost.description});
 
-        if sentiment.label == "neg"{
+        if sentiment.label == "neg" {
             PostForbidden postForbidden = {
                 body: {message: string `id: ${id}`, details: string `users/${id}/posts`, timeStamp: time:utcNow()}
             };
@@ -179,5 +183,4 @@ function postToPostWithMeta(Post[] post) returns PostWithMeta[] => from var post
             created_date: postItem.createdDate
         }
     };
-
 

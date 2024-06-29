@@ -39,16 +39,9 @@ target/
 .settings
 .vscode
 
-*/.idea
-*/.code
-*/.project
-*/.settings
-*/.vscode
-
 
 # Ballerina related ignores
 Ballerina.lock
 
-*/Ballerina.lock
 
 test.json
