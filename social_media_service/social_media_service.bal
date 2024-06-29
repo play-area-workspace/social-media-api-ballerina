@@ -5,6 +5,7 @@ import ballerina/sql;
 import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
+import ballerinax/slack;
 
 type User record {|
     readonly int id;
@@ -86,12 +87,28 @@ type DatabaseConfig record {|
     int port;
 |};
 
+type SlackConfig record {|
+    string authToken;
+    string channelName;
+|};
+
 configurable DatabaseConfig databaseConfig = ?;
+configurable SlackConfig slackConfig = ?;
 
 final mysql:Client socialMediaDb = check initSocialMediaDb();
 http:Client sentimentEndPoint = check new ("http://localhost:9099/text-processing",
-    timeout = 30
+    timeout = 30,
+    retryConfig = {
+        interval: 5,
+        count: 3
+    }
 );
+
+slack:Client slackClient = check new ({
+    auth: {
+        token: slackConfig.authToken
+    }
+});
 
 function initSocialMediaDb() returns mysql:Client|error => check new (...databaseConfig);
 
@@ -168,6 +185,11 @@ service /social\-media on new http:Listener(9090) {
         _ = check socialMediaDb->execute(`
             INSERT INTO posts(description, category, created_date, tags, user_id) 
             VALUES (${newPost.description}, ${newPost.category}, CURDATE(), ${newPost.tags}, ${id});`);
+
+        _ = check slackClient->postMessage({
+            channelName: slackConfig.channelName,
+            text: string `User ${user.name} posted a new post.`
+        });
 
         return http:CREATED;
     }

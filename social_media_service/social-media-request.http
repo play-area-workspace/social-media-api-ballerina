@@ -26,7 +26,7 @@ POST http://localhost:9090/social-media/users/3/posts
 content-type: application/json
 
 {
-    "description": "I want to learn Azure",
+    "description": "I want to learn Azure2",
     "tags": "azure,cloud,devops",
     "category": "education"
 }
