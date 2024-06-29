@@ -87,13 +87,13 @@ type DatabaseConfig record {|
 |};
 
 configurable DatabaseConfig databaseConfig = ?;
-configurable http:RetryConfig retryConfig = ?;
 
-mysql:Client socialMediaDb = check new (...databaseConfig);
+final mysql:Client socialMediaDb = check initSocialMediaDb();
 http:Client sentimentEndPoint = check new ("http://localhost:9099/text-processing",
-    timeout = 30,
-    retryConfig = {...retryConfig}
+    timeout = 30
 );
+
+function initSocialMediaDb() returns mysql:Client|error => check new (...databaseConfig);
 
 service /social\-media on new http:Listener(9090) {
 
