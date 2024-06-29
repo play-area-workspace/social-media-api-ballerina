@@ -4,6 +4,7 @@ import ballerina/sql;
 import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
+import ballerina/io;
 
 type User record {|
     readonly int id;
@@ -36,9 +37,6 @@ type NewPost record {|
     string description;
     string tags;
     string category;
-
-    @sql:Column {name: "created_date"}
-    time:Date createdDate;
 |};
 
 type ErrorDetails record {
@@ -68,6 +66,17 @@ type PostForbidden record {|
     *http:Forbidden;
     ErrorDetails body;
 |};
+
+type Probability record {
+    decimal neg;
+    decimal neutral;
+    decimal pos;
+};
+
+type Sentiment record {
+    Probability probability;
+    string label;
+};
 
 type DatabaseConfig record {|
     string host;
@@ -127,10 +136,10 @@ service /social\-media on new http:Listener(9090) {
         return postToPostWithMeta(check posts);
     }
 
-    resource function post users/[int id]/posts(NewPost newPost) returns http:Created|UserNotFound|PostForbidden|error? {
-        User user = check socialMediaDb->queryRow(`SELECT FROM users WHERE id = ${id}`);
+    resource function post users/[int id]/posts(NewPost newPost) returns http:Created|UserNotFound|PostForbidden|error {
+        User|error user = check socialMediaDb->queryRow(`SELECT * FROM users WHERE id = ${id}`);
         if user is sql:NoRowsError {
-            ErrorDetails errorDetails = {message: string `id: ${id}`, details: string `users/${id}/posts`, timeStamp: time:utcNow()}
+            ErrorDetails errorDetails = {message: string `id: ${id}`, details: string `users/${id}/posts`, timeStamp: time:utcNow()};
             UserNotFound userNotFound = {
                 body: errorDetails
             };
@@ -140,6 +149,17 @@ service /social\-media on new http:Listener(9090) {
         if user is error {
             return user;
         }
+
+        Sentiment sentiment = check sentimentEndPoint->/api/sentiment.post({text: newPost.description});
+
+        if sentiment.label == "neg"{
+            PostForbidden postForbidden = {
+                body: {message: string `id: ${id}`, details: string `users/${id}/posts`, timeStamp: time:utcNow()}
+            };
+            return postForbidden;
+        }
+
+        io:println(sentiment);
 
         _ = check socialMediaDb->execute(`
             INSERT INTO posts(description, category, created_date, tags, user_id) 
@@ -160,13 +180,4 @@ function postToPostWithMeta(Post[] post) returns PostWithMeta[] => from var post
         }
     };
 
-type Probability record {
-    decimal neg;
-    decimal neutral;
-    decimal pos;
-};
 
-type Sentiment record {
-    Probability probability;
-    string label;
-};
