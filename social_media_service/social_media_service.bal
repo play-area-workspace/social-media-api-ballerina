@@ -6,6 +6,7 @@ import ballerina/time;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
 import ballerinax/slack;
+import ballerina/constraint;
 
 type User record {|
     readonly int id;
@@ -19,8 +20,17 @@ type User record {|
 |};
 
 type NewUser record {|
+    
+    @constraint:String{
+        minLength: 2,
+        maxLength: 60
+    }
     string name;
     time:Date birthDate;
+
+    @constraint:String{
+        pattern: re `^(\+94|0)[0-9]{9}$`
+    }
     string mobileNumber;
 |};
 
